@@ -68,5 +68,3 @@ def _doPost(url: object, params: object):
         logging.error('generic exception: ' + traceback.format_exc())
     return ""
 
-
-print(getInfoFromTulingRobot("额，你为啥这么傲娇！"))

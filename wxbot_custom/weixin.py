@@ -72,8 +72,6 @@ def _decode_dict(data):
 
 class WebWeixin(object):
 
-    userNicknameWhiteList = [""]
-
     def __str__(self):
         description = \
             "=========================\n" + \
@@ -130,6 +128,8 @@ class WebWeixin(object):
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie))
         opener.addheaders = [('User-agent', self.user_agent)]
         urllib.request.install_opener(opener)
+        
+        self.userNicknameWhiteList = ["云儿","罗慧","翎漓雪","木易王罙","杨高翔","谢翠","卢磊","杨西","笑笑","陈俊超"]
 
     def loadConfig(self, config):
         if config['DEBUG']:
@@ -798,16 +798,14 @@ class WebWeixin(object):
             if msgType == 1:
                 raw_msg = {'raw_msg': msg}
                 self._showMsg(raw_msg)
-#自己加的代码-------------------------------------------#
-                #if self.autoReplyRevokeMode:
-                #    store
-#自己加的代码-------------------------------------------#
-                if name==self.User["NickName"]:
-                    ans = TulingRobot.getInfoFromTulingRobot(content,"中文",self.getUSerID(name))
+                
+                #自定义文字消息-------------------------------------------#
+                if msg['FromUserName']==msg['ToUserName'] :
+                    ans = self._doCommand(content)
                     self.webwxsendmsg(ans)
-                    print('自动回复了：',ans)
-                if self.autoReplyMode:
-                    ans = self._xiaodoubi(content) + '\n[微信机器人自动回复]'
+                    print('命令模式： 命令是',content,"回复是",ans)
+                if self.autoReplyMode and self._isInWhiteList(name) :
+                    ans = TulingRobot.getInfoFromTulingRobot(content,"中文",self.getUSerID(name))
                     if self.webwxsendmsg(ans, msg['FromUserName']):
                         print('自动回复: ' + ans)
                         logging.info('自动回复: ' + ans)
@@ -1195,7 +1193,55 @@ class WebWeixin(object):
             if pm:
                 return pm.group(1)
         return '未知'
+    
+    def _doCommand(self, content):
+        if "影分身之术" in content :
+            self.autoReplyMode = True
+            return "好哒！看我的！"
+        elif "不玩了" in content :
+            self.autoReplyMode = False
+            return "我在这儿等着你回来~等着你回来~"
+        elif "可撩" in content :
+            regx = r'(@\S+)'
+            pm = re.match(regx, content)
+            if pm:
+                userNicknameWhiteList.append(pm.group()[1:])
+                return pm.group()[1:] + "已加入您的豪华撩妹/汉名单"
+            else :
+                return "没get到您说的名字，请用@Name告诉我是谁"
+        elif "不撩" in content :
+            regx = r'(@\S+)'
+            pm = re.match(regx, content)
+            if pm:
+                userNicknameWhiteList.remove(pm.group()[1:])
+                return "哼，已经移除了" + pm.group()[1:] + "这个小婊砸！"
+            else :
+                return "没get到您说的名字，请用@Name告诉我是谁"
+        elif "上去撩他" in content :
+            regx = r'(@\S+)'
+            pm = re.match(regx, content)
+            if pm:
+                userNicknameWhiteList.append(pm.group()[1:])
+                return "as you wish, my lord"
+            else :
+                return "我们没能击穿敌军的装甲"
+        else :
+            return "I can not understand your command, my lord"
 
+    # 1 means user, 2 means group
+    def _isInWhiteList(self, name="", mode=1):
+        if mode==1 :
+            if (name in self.userNicknameWhiteList) :
+                return True
+            else :
+                return False
+        elif mode==2 :
+            # TODO: group is to do
+            return False
+        else :
+            # other condition is not supported now
+            return False
+        
 class UnicodeStreamFilter:
 
     def __init__(self, target):

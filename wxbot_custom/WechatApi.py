@@ -31,46 +31,7 @@ import TulingRobot
 import mimetypes
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
-
-def catchKeyboardInterrupt(fn):
-    def wrapper(*args):
-        try:
-            return fn(*args)
-        except KeyboardInterrupt:
-            print('\n[*] 强制退出程序')
-            logging.debug('[*] 强制退出程序')
-    return wrapper
-
-
-def _decode_list(data):
-    rv = []
-    for item in data:
-        if isinstance(item, str):
-            item = item.encode('utf-8')
-        elif isinstance(item, list):
-            item = _decode_list(item)
-        elif isinstance(item, dict):
-            item = _decode_dict(item)
-        rv.append(item)
-    return rv
-
-
-def _decode_dict(data):
-    rv = {}
-    for key, value in data.items():
-        if isinstance(key, str):
-            key = key.encode('utf-8')
-        if isinstance(value, str):
-            value = value.encode('utf-8')
-        elif isinstance(value, list):
-            value = _decode_list(value)
-        elif isinstance(value, dict):
-            value = _decode_dict(value)
-        rv[key] = value
-    return rv
-
-
-class WebWeixin(object):
+class weixin(object):
 
     def __str__(self):
         description = \
@@ -128,8 +89,6 @@ class WebWeixin(object):
         opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie))
         opener.addheaders = [('User-agent', self.user_agent)]
         urllib.request.install_opener(opener)
-        
-        self.userNicknameWhiteList = ["云儿","罗慧","翎漓雪","木易王罙","杨高翔","谢翠","卢磊","杨西","笑笑","陈俊超"]
 
     def loadConfig(self, config):
         if config['DEBUG']:
@@ -778,148 +737,6 @@ class WebWeixin(object):
             logging.info('%s %s -> %s: %s' % (message_id, srcName.strip(),
                                               dstName.strip(), content.replace('<br/>', '\n')))
 
-    def handleMsg(self, r):
-        for msg in r['AddMsgList']:
-            print('[*] 你有新的消息，请注意查收')
-            logging.debug('[*] 你有新的消息，请注意查收')
-
-            if self.DEBUG:
-                fn = 'msg' + str(int(random.random() * 1000)) + '.json'
-                with open(fn, 'w') as f:
-                    f.write(json.dumps(msg))
-                print('[*] 该消息已储存到文件: ' + fn)
-                logging.debug('[*] 该消息已储存到文件: %s' % (fn))
-
-            msgType = msg['MsgType']
-            name = self.getUserRemarkName(msg['FromUserName'])
-            content = msg['Content'].replace('&lt;', '<').replace('&gt;', '>')
-            msgid = msg['MsgId']
-
-            if msgType == 1:
-                raw_msg = {'raw_msg': msg}
-                self._showMsg(raw_msg)
-                
-                #自定义文字消息-------------------------------------------#
-                if msg['FromUserName']==msg['ToUserName'] :
-                    ans = self._doCommand(content)
-                    self.webwxsendmsg(ans)
-                    print('命令模式： 命令是',content,"回复是",ans)
-                if self.autoReplyMode and self._isInWhiteList(name) :
-                    ans = TulingRobot.getInfoFromTulingRobot(content,"中文",self.getUSerID(name))
-                    if self.webwxsendmsg(ans, msg['FromUserName']):
-                        print('自动回复: ' + ans)
-                        logging.info('自动回复: ' + ans)
-                    else:
-                        print('自动回复失败')
-                        logging.info('自动回复失败')
-            elif msgType == 3:
-                image = self.webwxgetmsgimg(msgid)
-                raw_msg = {'raw_msg': msg,
-                           'message': '%s 发送了一张图片: %s' % (name, image)}
-                self._showMsg(raw_msg)
-                self._safe_open(image)
-            elif msgType == 34:
-                voice = self.webwxgetvoice(msgid)
-                raw_msg = {'raw_msg': msg,
-                           'message': '%s 发了一段语音: %s' % (name, voice)}
-                self._showMsg(raw_msg)
-                self._safe_open(voice)
-            elif msgType == 42:
-                info = msg['RecommendInfo']
-                print('%s 发送了一张名片:' % name)
-                print('=========================')
-                print('= 昵称: %s' % info['NickName'])
-                print('= 微信号: %s' % info['Alias'])
-                print('= 地区: %s %s' % (info['Province'], info['City']))
-                print('= 性别: %s' % ['未知', '男', '女'][info['Sex']])
-                print('=========================')
-                raw_msg = {'raw_msg': msg, 'message': '%s 发送了一张名片: %s' % (
-                    name.strip(), json.dumps(info))}
-                self._showMsg(raw_msg)
-            elif msgType == 47:
-                url = self._searchContent('cdnurl', content)
-                raw_msg = {'raw_msg': msg,
-                           'message': '%s 发了一个动画表情，点击下面链接查看: %s' % (name, url)}
-                self._showMsg(raw_msg)
-                self._safe_open(url)
-            elif msgType == 49:
-                appMsgType = defaultdict(lambda: "")
-                appMsgType.update({5: '链接', 3: '音乐', 7: '微博'})
-                print('%s 分享了一个%s:' % (name, appMsgType[msg['AppMsgType']]))
-                print('=========================')
-                print('= 标题: %s' % msg['FileName'])
-                print('= 描述: %s' % self._searchContent('des', content, 'xml'))
-                print('= 链接: %s' % msg['Url'])
-                print('= 来自: %s' % self._searchContent('appname', content, 'xml'))
-                print('=========================')
-                card = {
-                    'title': msg['FileName'],
-                    'description': self._searchContent('des', content, 'xml'),
-                    'url': msg['Url'],
-                    'appname': self._searchContent('appname', content, 'xml')
-                }
-                raw_msg = {'raw_msg': msg, 'message': '%s 分享了一个%s: %s' % (
-                    name, appMsgType[msg['AppMsgType']], json.dumps(card))}
-                self._showMsg(raw_msg)
-            elif msgType == 51:
-                raw_msg = {'raw_msg': msg, 'message': '[*] 成功获取联系人信息'}
-                self._showMsg(raw_msg)
-            elif msgType == 62:
-                video = self.webwxgetvideo(msgid)
-                raw_msg = {'raw_msg': msg,
-                           'message': '%s 发了一段小视频: %s' % (name, video)}
-                self._showMsg(raw_msg)
-                self._safe_open(video)
-            elif msgType == 10002:
-                raw_msg = {'raw_msg': msg, 'message': '%s 撤回了一条消息' % name}
-                self._showMsg(raw_msg)
-            else:
-                logging.debug('[*] 该消息类型为: %d，可能是表情，图片, 链接或红包: %s' %
-                              (msg['MsgType'], json.dumps(msg)))
-                raw_msg = {
-                    'raw_msg': msg, 'message': '[*] 该消息类型为: %d，可能是表情，图片, 链接或红包' % msg['MsgType']}
-                self._showMsg(raw_msg)
-
-    def listenMsgMode(self):
-        print('[*] 进入消息监听模式 ... 成功')
-        logging.debug('[*] 进入消息监听模式 ... 成功')
-        self._run('[*] 进行同步线路测试 ... ', self.testsynccheck)
-        playWeChat = 0
-        redEnvelope = 0
-        while True:
-            self.lastCheckTs = time.time()
-            [retcode, selector] = self.synccheck()
-            if self.DEBUG:
-                print('retcode: %s, selector: %s' % (retcode, selector))
-            logging.debug('retcode: %s, selector: %s' % (retcode, selector))
-            if retcode == '1100':
-                print('[*] 你在手机上登出了微信，债见')
-                logging.debug('[*] 你在手机上登出了微信，债见')
-                break
-            if retcode == '1101':
-                print('[*] 你在其他地方登录了 WEB 版微信，债见')
-                logging.debug('[*] 你在其他地方登录了 WEB 版微信，债见')
-                break
-            elif retcode == '0':
-                if selector == '2':
-                    r = self.webwxsync()
-                    if r is not None:
-                        self.handleMsg(r)
-                elif selector == '6':
-                    # TODO
-                    redEnvelope += 1
-                    print('[*] 收到疑似红包消息 %d 次' % redEnvelope)
-                    logging.debug('[*] 收到疑似红包消息 %d 次' % redEnvelope)
-                elif selector == '7':
-                    playWeChat += 1
-                    print('[*] 你在手机上玩微信被我发现了 %d 次' % playWeChat)
-                    logging.debug('[*] 你在手机上玩微信被我发现了 %d 次' % playWeChat)
-                    r = self.webwxsync()
-                elif selector == '0':
-                    time.sleep(1)
-            if (time.time() - self.lastCheckTs) <= 20:
-                time.sleep(time.time() - self.lastCheckTs)
-
     def sendMsg(self, name, word, isfile=False):
         id = self.getUSerID(name)
         if id:
@@ -972,107 +789,12 @@ class WebWeixin(object):
         user_id = self.getUSerID(name)
         response = self.webwxsendmsgemotion(user_id, media_id)
 
-    @catchKeyboardInterrupt
-    def start(self):
-        self._echo('[*] 微信网页版 ... 开动')
-        print()
-        logging.debug('[*] 微信网页版 ... 开动')
-        while True:
-            self._run('[*] 正在获取 uuid ... ', self.getUUID)
-            self._echo('[*] 正在获取二维码 ... 成功')
-            print()
-            logging.debug('[*] 微信网页版 ... 开动')
-            self.genQRCode()
-            print('[*] 请使用微信扫描二维码以登录 ... ')
-            if not self.waitForLogin():
-                continue
-                print('[*] 请在手机上点击确认以登录 ... ')
-            if not self.waitForLogin(0):
-                continue
-            break
-
-        self._run('[*] 正在登录 ... ', self.login)
-        self._run('[*] 微信初始化 ... ', self.webwxinit)
-        self._run('[*] 开启状态通知 ... ', self.webwxstatusnotify)
-        self._run('[*] 获取联系人 ... ', self.webwxgetcontact)
-        self._echo('[*] 应有 %s 个联系人，读取到联系人 %d 个' %
-                   (self.MemberCount, len(self.MemberList)))
-        print()
-        self._echo('[*] 共有 %d 个群 | %d 个直接联系人 | %d 个特殊账号 ｜ %d 公众号或服务号' % (len(self.GroupList),
-                                                                         len(self.ContactList), len(self.SpecialUsersList), len(self.PublicUsersList)))
-        print()
-        self._run('[*] 获取群 ... ', self.webwxbatchgetcontact)
-        logging.debug('[*] 微信网页版 ... 开动')
-        if self.DEBUG:
-            print(self)
-        logging.debug(self)
-
-        if self.interactive and input('[*] 是否开启自动回复模式(y/n): ') == 'y':
-            self.autoReplyMode = True
-            print('[*] 自动回复模式 ... 开启')
-            logging.debug('[*] 自动回复模式 ... 开启')
-        else:
-            print('[*] 自动回复模式 ... 关闭')
-            logging.debug('[*] 自动回复模式 ... 关闭')
-
-        if sys.platform.startswith('win'):
-            import _thread
-            _thread.start_new_thread(self.listenMsgMode())
-        else:
-            listenProcess = multiprocessing.Process(target=self.listenMsgMode)
-            listenProcess.start()
-
-        while True:
-            text = input('')
-            if text == 'quit':
-                listenProcess.terminate()
-                print('[*] 退出微信')
-                logging.debug('[*] 退出微信')
-                exit()
-            elif text[:2] == '->':
-                [name, word] = text[2:].split(':')
-                if name == 'all':
-                    self.sendMsgToAll(word)
-                else:
-                    self.sendMsg(name, word)
-            elif text[:3] == 'm->':
-                [name, file] = text[3:].split(':')
-                self.sendMsg(name, file, True)
-            elif text[:3] == 'f->':
-                print('发送文件')
-                logging.debug('发送文件')
-            elif text[:3] == 'i->':
-                print('发送图片')
-                [name, file_name] = text[3:].split(':')
-                self.sendImg(name, file_name)
-                logging.debug('发送图片')
-            elif text[:3] == 'e->':
-                print('发送表情')
-                [name, file_name] = text[3:].split(':')
-                self.sendEmotion(name, file_name)
-                logging.debug('发送表情')
-
     def _safe_open(self, path):
         if self.autoOpen:
             if platform.system() == "Linux":
                 os.system("xdg-open %s &" % path)
             else:
                 os.system('open %s &' % path)
-
-    def _run(self, str, func, *args):
-        self._echo(str)
-        if func(*args):
-            print('成功')
-            logging.debug('%s... 成功' % (str))
-        else:
-            print('失败\n[*] 退出程序')
-            logging.debug('%s... 失败' % (str))
-            logging.debug('[*] 退出程序')
-            exit()
-
-    def _echo(self, str):
-        sys.stdout.write(str)
-        sys.stdout.flush()
 
     def _printQR(self, mat):
         for i in mat:
@@ -1193,55 +915,8 @@ class WebWeixin(object):
             if pm:
                 return pm.group(1)
         return '未知'
-    
-    def _doCommand(self, content):
-        if "影分身之术" in content :
-            self.autoReplyMode = True
-            return "好哒！看我的！"
-        elif "不玩了" in content :
-            self.autoReplyMode = False
-            return "我在这儿等着你回来~等着你回来~"
-        elif "可撩" in content :
-            regx = r'(@\S+)'
-            pm = re.match(regx, content)
-            if pm:
-                userNicknameWhiteList.append(pm.group()[1:])
-                return pm.group()[1:] + "已加入您的豪华撩妹/汉名单"
-            else :
-                return "没get到您说的名字，请用@Name告诉我是谁"
-        elif "不撩" in content :
-            regx = r'(@\S+)'
-            pm = re.match(regx, content)
-            if pm:
-                userNicknameWhiteList.remove(pm.group()[1:])
-                return "哼，已经移除了" + pm.group()[1:] + "这个小婊砸！"
-            else :
-                return "没get到您说的名字，请用@Name告诉我是谁"
-        elif "上去撩他" in content :
-            regx = r'(@\S+)'
-            pm = re.match(regx, content)
-            if pm:
-                userNicknameWhiteList.append(pm.group()[1:])
-                return "as you wish, my lord"
-            else :
-                return "我们没能击穿敌军的装甲"
-        else :
-            return "I can not understand your command, my lord"
-
-    # 1 means user, 2 means group
-    def _isInWhiteList(self, name="", mode=1):
-        if mode==1 :
-            if (name in self.userNicknameWhiteList) :
-                return True
-            else :
-                return False
-        elif mode==2 :
-            # TODO: group is to do
-            return False
-        else :
-            # other condition is not supported now
-            return False
         
+
 class UnicodeStreamFilter:
 
     def __init__(self, target):
@@ -1258,16 +933,3 @@ class UnicodeStreamFilter:
 
     def flush(self):
         self.target.flush()
-
-if sys.stdout.encoding == 'cp936':
-    sys.stdout = UnicodeStreamFilter(sys.stdout)
-
-
-if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
-    if not sys.platform.startswith('win'):
-        import coloredlogs
-        coloredlogs.install(level='DEBUG')
-
-    webwx = WebWeixin()
-    webwx.start()

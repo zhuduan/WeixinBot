@@ -82,7 +82,7 @@ class weixin(object):
         self.memberCount = 0
         self.SpecialUsers = ['newsapp', 'fmessage', 'filehelper', 'weibo', 'qqmail', 'fmessage', 'tmessage', 'qmessage', 'qqsync', 'floatbottle', 'lbsapp', 'shakeapp', 'medianote', 'qqfriend', 'readerapp', 'blogapp', 'facebookapp', 'masssendapp', 'meishiapp', 'feedsapp',
                              'voip', 'blogappweixin', 'weixin', 'brandsessionholder', 'weixinreminder', 'wxid_novlwrv3lqwv11', 'gh_22b87fa7cb3c', 'officialaccounts', 'notification_messages', 'wxid_novlwrv3lqwv11', 'gh_22b87fa7cb3c', 'wxitil', 'userexperience_alarm', 'notification_messages']
-        self.TimeOut = 20  # 同步最短时间间隔（单位：秒）
+        self.TimeOut = 10  # 同步最短时间间隔（单位：秒）
         self.media_count = -1
 
         self.cookie = http.cookiejar.CookieJar()
@@ -824,7 +824,7 @@ class weixin(object):
             result = data.decode('utf-8')
         return result
 
-    def _get(self, url: object, api: object = None, timeout: object = None) -> object:
+    def _get(self, url: object, api: object = None, timeout: object=5 ) -> object:
         request = urllib.request.Request(url=url)
         request.add_header('Referer', 'https://wx.qq.com/')
         if api == 'webwxgetvoice':
@@ -854,7 +854,7 @@ class weixin(object):
             logging.error('generic exception: ' + traceback.format_exc())
         return ''
 
-    def _post(self, url: object, params: object, jsonfmt: object = True) -> object:
+    def _post(self, url: object, params: object, jsonfmt: object = True, timeout: object=5) -> object:
         if jsonfmt:
             data = (json.dumps(params)).encode()
 
@@ -866,7 +866,7 @@ class weixin(object):
 
 
         try:
-            response = urllib.request.urlopen(request)
+            response = urllib.request.urlopen(request, timeout=timeout)
             data = response.read()
             if jsonfmt:
                 return json.loads(data.decode('utf-8') )#object_hook=_decode_dict)
@@ -877,6 +877,8 @@ class weixin(object):
             logging.error('URLError = ' + str(e.reason))
         except http.client.HTTPException as e:
             logging.error('HTTPException')
+        except timeout_error as e:
+            pass
         except Exception:
             import traceback
             logging.error('generic exception: ' + traceback.format_exc())
@@ -915,7 +917,7 @@ class weixin(object):
             if pm:
                 return pm.group(1)
         return '未知'
-        
+
 
 class UnicodeStreamFilter:
 

@@ -12,6 +12,9 @@ import logging
 import http.client
 from collections import defaultdict
 from urllib.parse import urlparse
+from lxml import html
+from socket import timeout as timeout_error
+
 
 def getInfoFromTulingRobot(question,location="中国",userID="123"):
     baseUrl = "http://www.tuling123.com/openapi/api"
@@ -21,7 +24,7 @@ def getInfoFromTulingRobot(question,location="中国",userID="123"):
 
     data = { "key":apiKey, "info":question, "loc": location, "userid": userID}
     responeInfo = _doPost(baseUrl,data)
-    answer = "伦家出错啦，哎嘿～"
+    answer = "666"
     if responeInfo != "":
         answer = handleAnswer(responeInfo)
     return answer
@@ -54,7 +57,7 @@ def _doPost(url: object, params: object):
         request = urllib.request.Request(url)
         request.add_header('ContentType', 'application/json; charset=UTF-8')
 
-        response = urllib.request.urlopen(request, data)
+        response = urllib.request.urlopen(request, data, timeout=5)
         result = response.read()
         return json.loads(result.decode('utf-8'))
     except urllib.error.HTTPError as e:
@@ -63,8 +66,9 @@ def _doPost(url: object, params: object):
         logging.error('URLError = ' + str(e.reason))
     except http.client.HTTPException as e:
         logging.error('HTTPException')
+    except timeout_error as e:
+        pass
     except Exception:
         import traceback
         logging.error('generic exception: ' + traceback.format_exc())
     return ""
-

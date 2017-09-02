@@ -5,7 +5,7 @@ import os
 from collections import defaultdict
 from urllib.parse import urlparse
 
-
+DEBUG_MODEL = False
 
 def catchKeyboardInterrupt(fn):
     def wrapper(*args):
@@ -56,6 +56,8 @@ def run(str, func, *args):
         exit()
 
 def echo(str):
+    if not DEBUG_MODEL :
+        return 
     logging.info(str)
     sys.stdout.write(str)
     sys.stdout.flush()

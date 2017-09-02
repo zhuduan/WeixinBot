@@ -1,12 +1,17 @@
 import re
 import json
 import time
+import logging
 
 import WechatApi
 import Utils
+import TulingRobot
 
-autoReplyMode = False
-userNicknameWhiteList = ["云儿","罗慧","翎漓雪","木易王罙","杨高翔","谢翠","卢磊","杨西","笑笑","陈俊超"]
+from collections import defaultdict
+
+autoReplyMode = True
+userNicknameWhiteList = ["zz","罗慧","zz","卢磊","谢翠","杨西","笑笑"]
+groupNameWhiteList = [""]
 
 # dispatch the request, base on: from type
 def handle(msg, api):
@@ -34,8 +39,11 @@ def userMessageHandler(msg, api):
     fromUserID = msg['FromUserName']
     fromUserName = api.getUserRemarkName(fromUserID)
     toUserID = msg['ToUserName']
-    toUserName = api.getUserRemarkName(fromUserID)
+    toUserName = api.getUserRemarkName(toUserID)
     content = msg['Content'].replace('&lt;', '<').replace('&gt;', '>')
+
+    if len(content)<1 :
+        return { 'raw_msg': msg, 'message': 'userMessageHandler不需要处理空消息'};
 
     if msgType == 1:
         raw_msg = {'raw_msg': msg}
@@ -44,8 +52,8 @@ def userMessageHandler(msg, api):
             answer = doCommand(content)
             api.webwxsendmsg(answer)
             Utils.echo('命令模式： 命令是' + content + "回复是" + answer)
-        elif autoReplyMode and isInWhiteList(fromUserName) :
-            answer = TulingRobot.getInfoFromTulingRobot(content,"中文",fromUserID)
+        elif autoReplyMode and isInWhiteList(fromUserName,1) :
+            answer = TulingRobot.getInfoFromTulingRobot(content,"中国",fromUserID)
             if api.webwxsendmsg(answer, fromUserID):
                 Utils.echo('自动回复: ' + answer)
             else:
@@ -121,11 +129,60 @@ def userMessageHandler(msg, api):
     return { 'raw_msg': msg, 'message': 'userMessageHandler无法处理的类型'};
 
 def groupMessageHandler(msg, api):
-    #TODO:
-    return {'raw_msg' : msg, 'message': '群组消息待处理'}
+    msgid = msg['MsgId']
+    msgType = msg['MsgType']
+    groupContent = msg['Content'].replace('&lt;', '<').replace('&gt;', '>')
+    fromUserID = msg['FromUserName']
+    toUserID = msg['ToUserName']
+
+    if fromUserID==api.User['UserName'] :
+        return {'raw_msg' : msg, 'message': "自己发送的消息不处理" }
+
+    if not (":<br/>" in groupContent) :
+        return {'raw_msg' : msg, 'message': "群组空通知消息暂不处理" }
+
+    actualUserID = "123";
+    if len(fromUserID)>3 and fromUserID[:2]=="@@" :
+        print("从群组收到消息")
+        actualUserID = groupContent.split(":<br/>")[0]
+
+    else:
+        logging.warn("无法合理处理的群组消息, fromUserID=" + fromUserID + ", toUserID=" + toUserID)
+        return {'raw_msg' : msg, 'message': "无法合理处理的群组消息" }
+
+    actualContent = groupContent.split(":<br/>")[1]
+    actualUserName = api.getUserRemarkName(actualUserID)
+    groupName = api.getGroupName(fromUserID)
+
+    if len(actualContent)<1 :
+        return { 'raw_msg': msg, 'message': 'groupMessageHandler不需要处理空消息'};
+
+    #TODO: 分类型处理
+    if msgType == 1:
+        raw_msg = {'raw_msg': msg}
+        print("开始处理群组的自动回复消息")
+        if autoReplyMode and isInWhiteList(actualUserName,1) :
+            answer = TulingRobot.getInfoFromTulingRobot(actualContent,"中国",actualUserID)
+            print("得到答案: "+ answer)
+            if api.webwxsendmsg(answer, fromUserID):
+                Utils.echo('自动回复: ' + answer)
+            else:
+                Utils.echo('自动回复失败')
+        #return raw_msg
+
+    debugInfo = "群组消息待处理, fromUserID=" + fromUserID \
+              + ", actualUserName=" + actualUserName \
+              + ", actualContent=" + actualContent
+    return {'raw_msg' : msg, 'message': debugInfo }
 
 def doCommand(content):
-    if "影分身之术" in content :
+    global autoReplyMode
+    if "啥情况" in content :
+        result = json.dumps({ "autoReplyMode" : autoReplyMode,
+                              "userNicknameWhiteList" : userNicknameWhiteList
+                           }, ensure_ascii=False)
+        return result
+    elif "影分身之术" in content :
         autoReplyMode = True
         return "好哒！看我的！"
     elif "不玩了" in content :
@@ -161,7 +218,7 @@ def doCommand(content):
 # 1 means user, 2 means group
 def isInWhiteList(name="", mode=1):
     if mode==1 :
-        if (name in userNicknameWhiteList) :
+        if name in userNicknameWhiteList :
             return True
         else :
             return False
